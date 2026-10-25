@@ -1,6 +1,7 @@
 {
 	"name": "pl_test_alert",
 	"properties": {
+		"description": "“Intentionally fails. Used to test the failure alert,”",
 		"activities": [
 			{
 				"name": "Fail1",
