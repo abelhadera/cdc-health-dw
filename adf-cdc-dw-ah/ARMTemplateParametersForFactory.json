@@ -1,0 +1,21 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "adf-cdc-dw-ah"
+		},
+		"ls_adls_properties_typeProperties_url": {
+			"value": "https://stcdcdwah.dfs.core.windows.net/"
+		},
+		"ls_azuresql_properties_typeProperties_server": {
+			"value": "sql-cdc-dw-ah.database.windows.net"
+		},
+		"ls_azuresql_properties_typeProperties_database": {
+			"value": "cdc_dw"
+		},
+		"ls_http_cdc_properties_typeProperties_url": {
+			"value": "https://data.cdc.gov/"
+		}
+	}
+}

@@ -1,0 +1,542 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "adf-cdc-dw-ah"
+		},
+		"ls_adls_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://stcdcdwah.dfs.core.windows.net/"
+		},
+		"ls_azuresql_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "sql-cdc-dw-ah.database.windows.net"
+		},
+		"ls_azuresql_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "cdc_dw"
+		},
+		"ls_http_cdc_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://data.cdc.gov/"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_load_nhsn_hrd')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "copy_cdc_to_raw",
+						"type": "Copy",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "DelimitedTextSource",
+								"storeSettings": {
+									"type": "HttpReadSettings",
+									"requestMethod": "GET"
+								},
+								"formatSettings": {
+									"type": "DelimitedTextReadSettings"
+								}
+							},
+							"sink": {
+								"type": "DelimitedTextSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "DelimitedTextWriteSettings",
+									"quoteAllText": true,
+									"fileExtension": ".txt"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "ds_http_cdc_hrd",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "ds_adls_raw_hrd",
+								"type": "DatasetReference",
+								"parameters": {
+									"folder": {
+										"value": "@concat('nhsn_hrd/', formatDateTime(pipeline().TriggerTime, 'yyyy/MM/dd'))",
+										"type": "Expression"
+									},
+									"file": {
+										"value": "@concat('hrd_', formatDateTime(pipeline().TriggerTime, 'yyyyMMdd_HHmmss'), '.csv')",
+										"type": "Expression"
+									}
+								}
+							}
+						]
+					},
+					{
+						"name": "copy_raw_to_stg",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "copy_cdc_to_raw",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "DelimitedTextSource",
+								"additionalColumns": [
+									{
+										"name": "_source_file",
+										"value": "$$FILEPATH"
+									}
+								],
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "DelimitedTextReadSettings"
+								}
+							},
+							"sink": {
+								"type": "AzureSqlSink",
+								"preCopyScript": "TRUNCATE TABLE stg.nhsn_hrd_weekly",
+								"writeBehavior": "insert",
+								"sqlWriterUseTableLock": false,
+								"disableMetricsCollection": false
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "ds_adls_raw_hrd",
+								"type": "DatasetReference",
+								"parameters": {
+									"folder": {
+										"value": "@concat('nhsn_hrd/', formatDateTime(pipeline().TriggerTime, 'yyyy/MM/dd'))",
+										"type": "Expression"
+									},
+									"file": {
+										"value": "@concat('hrd_', formatDateTime(pipeline().TriggerTime, 'yyyyMMdd_HHmmss'), '.csv')",
+										"type": "Expression"
+									}
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "ds_sql_stg_hrd",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "sp_load_dw",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "copy_raw_to_stg",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[etl].[usp_load_dw]",
+							"storedProcedureParameters": {
+								"pipeline_run_id": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "String"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_azuresql",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "sp_run_dq_checks",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "sp_load_dw",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[etl].[usp_run_dq_checks]"
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_azuresql",
+							"type": "LinkedServiceReference"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-10-25T01:55:56Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/ds_http_cdc_hrd')]",
+				"[concat(variables('factoryId'), '/datasets/ds_adls_raw_hrd')]",
+				"[concat(variables('factoryId'), '/datasets/ds_sql_stg_hrd')]",
+				"[concat(variables('factoryId'), '/linkedServices/ls_azuresql')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_adls_raw_hrd')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"folder": {
+						"type": "string"
+					},
+					"file": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().file",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().folder",
+							"type": "Expression"
+						},
+						"fileSystem": "raw"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\"",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_http_cdc_hrd')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_http_cdc",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "HttpServerLocation",
+						"relativeUrl": "resource/ua7e-t2fy.csv?$select=weekendingdate,jurisdiction,respseason,numinptbeds,numinptbedsocc,numicubeds,numicubedsocc,totalconfc19newadm,totalconfc19newadmadult,totalconfc19newadmped,totalconfc19hosppats,totalconfc19icupats,totalconfc19newadmhosprep,totalconfflunewadm,totalconfflunewadmadult,totalconfflunewadmped,totalconffluhosppats,totalconffluicupats,totalconfflunewadmhosprep,totalconfrsvnewadm,totalconfrsvnewadmadult,totalconfrsvnewadmped,totalconfrsvhosppats,totalconfrsvicupats,totalconfrsvnewadmhosprep&$limit=50000&$order=weekendingdate,jurisdiction"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\"",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_http_cdc')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_sql_stg_hrd')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_azuresql",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "weekendingdate",
+						"type": "nvarchar"
+					},
+					{
+						"name": "jurisdiction",
+						"type": "nvarchar"
+					},
+					{
+						"name": "respseason",
+						"type": "nvarchar"
+					},
+					{
+						"name": "numinptbeds",
+						"type": "nvarchar"
+					},
+					{
+						"name": "numinptbedsocc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "numicubeds",
+						"type": "nvarchar"
+					},
+					{
+						"name": "numicubedsocc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfc19newadm",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfc19newadmadult",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfc19newadmped",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfc19hosppats",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfc19icupats",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfc19newadmhosprep",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfflunewadm",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfflunewadmadult",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfflunewadmped",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconffluhosppats",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconffluicupats",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfflunewadmhosprep",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfrsvnewadm",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfrsvnewadmadult",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfrsvnewadmped",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfrsvhosppats",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfrsvicupats",
+						"type": "nvarchar"
+					},
+					{
+						"name": "totalconfrsvnewadmhosprep",
+						"type": "nvarchar"
+					},
+					{
+						"name": "_source_file",
+						"type": "nvarchar"
+					},
+					{
+						"name": "_loaded_at",
+						"type": "datetime2",
+						"scale": 0
+					}
+				],
+				"typeProperties": {
+					"schema": "stg",
+					"table": "nhsn_hrd_weekly"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_azuresql')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ls_adls')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('ls_adls_properties_typeProperties_url')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ls_azuresql')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('ls_azuresql_properties_typeProperties_server')]",
+					"database": "[parameters('ls_azuresql_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SystemAssignedManagedIdentity"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ls_http_cdc')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "HttpServer",
+				"typeProperties": {
+					"url": "[parameters('ls_http_cdc_properties_typeProperties_url')]",
+					"enableServerCertificateValidation": true,
+					"authenticationType": "Anonymous"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/trg_weekly_saturday')]",
+			"type": "Microsoft.DataFactory/factories/triggers",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Started",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "pl_load_nhsn_hrd",
+							"type": "PipelineReference"
+						},
+						"parameters": {}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Week",
+						"interval": 1,
+						"startTime": "2026-10-31T10:00:00",
+						"timeZone": "Eastern Standard Time",
+						"schedule": {
+							"weekDays": [
+								"Saturday"
+							]
+						}
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/pl_load_nhsn_hrd')]"
+			]
+		}
+	]
+}
