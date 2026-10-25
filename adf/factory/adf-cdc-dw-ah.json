@@ -1,0 +1,15 @@
+{
+	"name": "adf-cdc-dw-ah",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "centralus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "4bef9277-dd15-4e81-9fea-4a0ae1e1336c",
+		"tenantId": "6dcc04aa-721c-4ca3-913e-56d34b978afc"
+	}
+}

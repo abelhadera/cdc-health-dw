@@ -1,0 +1,23 @@
+{
+	"name": "ds_http_cdc_hrd",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_http_cdc",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "HttpServerLocation",
+				"relativeUrl": "resource/ua7e-t2fy.csv?$select=weekendingdate,jurisdiction,respseason,numinptbeds,numinptbedsocc,numicubeds,numicubedsocc,totalconfc19newadm,totalconfc19newadmadult,totalconfc19newadmped,totalconfc19hosppats,totalconfc19icupats,totalconfc19newadmhosprep,totalconfflunewadm,totalconfflunewadmadult,totalconfflunewadmped,totalconffluhosppats,totalconffluicupats,totalconfflunewadmhosprep,totalconfrsvnewadm,totalconfrsvnewadmadult,totalconfrsvnewadmped,totalconfrsvhosppats,totalconfrsvicupats,totalconfrsvnewadmhosprep&$limit=50000&$order=weekendingdate,jurisdiction"
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\"",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": []
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

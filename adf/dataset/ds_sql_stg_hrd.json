@@ -1,0 +1,127 @@
+{
+	"name": "ds_sql_stg_hrd",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_azuresql",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "weekendingdate",
+				"type": "nvarchar"
+			},
+			{
+				"name": "jurisdiction",
+				"type": "nvarchar"
+			},
+			{
+				"name": "respseason",
+				"type": "nvarchar"
+			},
+			{
+				"name": "numinptbeds",
+				"type": "nvarchar"
+			},
+			{
+				"name": "numinptbedsocc",
+				"type": "nvarchar"
+			},
+			{
+				"name": "numicubeds",
+				"type": "nvarchar"
+			},
+			{
+				"name": "numicubedsocc",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfc19newadm",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfc19newadmadult",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfc19newadmped",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfc19hosppats",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfc19icupats",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfc19newadmhosprep",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfflunewadm",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfflunewadmadult",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfflunewadmped",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconffluhosppats",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconffluicupats",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfflunewadmhosprep",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfrsvnewadm",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfrsvnewadmadult",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfrsvnewadmped",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfrsvhosppats",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfrsvicupats",
+				"type": "nvarchar"
+			},
+			{
+				"name": "totalconfrsvnewadmhosprep",
+				"type": "nvarchar"
+			},
+			{
+				"name": "_source_file",
+				"type": "nvarchar"
+			},
+			{
+				"name": "_loaded_at",
+				"type": "datetime2",
+				"scale": 0
+			}
+		],
+		"typeProperties": {
+			"schema": "stg",
+			"table": "nhsn_hrd_weekly"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
